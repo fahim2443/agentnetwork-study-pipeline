@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from typing import List
 
 # --- LLM Configuration ---
-OPENROUTER_API_KEY = "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"
+OPENROUTER_API_KEY = "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"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 _quiz_cache = {}
