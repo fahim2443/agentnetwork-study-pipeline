@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔗 AgentNetwork Study Pipeline</title>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --text-color: #c9d1d9;
+            --accent-color: #58a6ff;
+            --border-color: #30363d;
+            --card-bg: #161b22;
+            --green-glow: #3fb950;
+            --red-glow: #f85149;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 800px;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        h1 {
+            font-size: 2.5rem;
+            color: var(--accent-color);
+            margin-bottom: 0.5rem;
+        }
+        h1 span {
+            font-weight: normal;
+        }
+        header p {
+            font-size: 1.2rem;
+            color: #8b949e;
+        }
+        .input-section {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        #topic-input {
+            flex-grow: 1;
+            background-color: var(--card-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 0.75rem;
+            font-size: 1rem;
+        }
+        #topic-input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.3);
+        }
+        #generate-btn {
+            background-color: var(--accent-color);
+            color: var(--bg-color);
+            border: none;
+            border-radius: 6px;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        #generate-btn:hover {
+            background-color: #79b8ff;
+        }
+        .loader {
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--bg-color);
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            display: none;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .pipeline-visualization {
+            margin-bottom: 2rem;
+        }
+        .pipeline-nodes {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+        }
+        .node, .arrow {
+            display: flex;
+            align-items: center;
+        }
+        .node {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        .node.active {
+            border-color: var(--green-glow);
+            box-shadow: 0 0 15px rgba(63, 185, 80, 0.5);
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        .arrow {
+            color: #8b949e;
+            font-size: 1.5rem;
+        }
+        .results-section {
+            display: none;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+        }
+        .card h2 {
+            margin-top: 0;
+            color: var(--accent-color);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        #knowledge-card p {
+            line-height: 1.6;
+        }
+        #quiz-card .quiz-questions {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        .question-item {
+            border-left: 3px solid var(--border-color);
+            padding-left: 1rem;
+        }
+        .question-item p {
+            font-weight: 600;
+            margin: 0 0 0.75rem 0;
+        }
+        .options-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+        }
+        .option {
+            background-color: #21262d;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .option:hover {
+            border-color: var(--accent-color);
+        }
+        .option.correct {
+            background-color: rgba(63, 185, 80, 0.2);
+            border-color: var(--green-glow);
+            color: #aff5b4;
+        }
+        .option.incorrect {
+            background-color: rgba(248, 81, 73, 0.2);
+            border-color: var(--red-glow);
+            color: #ffb3b0;
+        }
+        .option.selected {
+             border-color: var(--accent-color);
+             box-shadow: 0 0 0 2px var(--accent-color);
+        }
+        #trace-card details {
+            cursor: pointer;
+        }
+        #trace-card pre {
+            background-color: var(--bg-color);
+            padding: 1rem;
+            border-radius: 6px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+            font-size: 0.85rem;
+        }
+        .status-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: var(--card-bg);
+            border-top: 1px solid var(--border-color);
+            padding: 0.5rem 1rem;
+            font-size: 0.8rem;
+            color: #8b949e;
+            display: flex;
+            justify-content: space-between;
+        }
+        .status-light {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+            background-color: #6e7681;
+        }
+        .status-light.green { background-color: var(--green-glow); }
+        .status-light.red { background-color: var(--red-glow); }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>🔗 <span>AgentNetwork</span> Study Pipeline</h1>
+            <p>A Multi-Agent P2P Learning System</p>
+        </header>
+
+        <section class="input-section">
+            <input type="text" id="topic-input" placeholder="Enter a topic (e.g., Python recursion)">
+            <button id="generate-btn">
+                <div class="loader"></div>
+                <span>Generate Quiz</span>
+            </button>
+        </section>
+
+        <section class="pipeline-visualization">
+            <div class="pipeline-nodes">
+                <div class="node" id="node-user">[User]</div>
+                <div class="arrow">→</div>
+                <div class="node" id="node-orchestrator">[Orchestrator]</div>
+                <div class="arrow">→</div>
+                <div class="node" id="node-knowledge">[Knowledge Agent]</div>
+                <div class="arrow">→</div>
+                <div class="node" id="node-quiz">[Quiz Agent]</div>
+                <div class="arrow">→</div>
+                <div class="node" id="node-result">[Result]</div>
+            </div>
+        </section>
+
+        <section class="results-section" id="results-section">
+            <div class="card" id="knowledge-card">
+                <h2>🧠 Knowledge Retrieved</h2>
+                <p id="knowledge-text"></p>
+            </div>
+            <div class="card" id="quiz-card">
+                <h2>📝 Quiz</h2>
+                <div class="quiz-questions" id="quiz-questions"></div>
+            </div>
+            <div class="card" id="trace-card">
+                <details>
+                    <summary><h2>⚙️ Pipeline Trace</h2></summary>
+                    <pre id="pipeline-trace"></pre>
+                </details>
+            </div>
+        </section>
+    </div>
+
+    <div class="status-bar">
+        <div>
+            <span id="daemon-status-light" class="status-light"></span>
+            <span id="daemon-status-text">Daemon Status: Checking...</span>
+        </div>
+        <div>
+            <span id="services-status-text">Registered Services: 0</span>
+        </div>
+    </div>
+
+    <script>
+        const topicInput = document.getElementById('topic-input');
+        const generateBtn = document.getElementById('generate-btn');
+        const loader = generateBtn.querySelector('.loader');
+        const btnText = generateBtn.querySelector('span');
+        const resultsSection = document.getElementById('results-section');
+        
+        const knowledgeText = document.getElementById('knowledge-text');
+        const quizQuestionsContainer = document.getElementById('quiz-questions');
+        const pipelineTrace = document.getElementById('pipeline-trace');
+
+        const nodes = {
+            user: document.getElementById('node-user'),
+            orchestrator: document.getElementById('node-orchestrator'),
+            knowledge: document.getElementById('node-knowledge'),
+            quiz: document.getElementById('node-quiz'),
+            result: document.getElementById('node-result'),
+        };
+
+        const ORCHESTRATOR_URL = 'http://localhost:7103';
+
+        async function animatePipeline(trace) {
+            const resetNodes = () => Object.values(nodes).forEach(n => n.classList.remove('active'));
+            resetNodes();
+
+            const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+            nodes.user.classList.add('active');
+            await sleep(300);
+
+            for (const event of trace) {
+                if (event.step.toLowerCase().includes('orchestrator') || event.step.toLowerCase().includes('discover knowledge')) {
+                    nodes.orchestrator.classList.add('active');
+                }
+                if (event.step.toLowerCase().includes('knowledge service')) {
+                    nodes.knowledge.classList.add('active');
+                }
+                if (event.step.toLowerCase().includes('quiz service')) {
+                    nodes.quiz.classList.add('active');
+                }
+                await sleep(500);
+            }
+            nodes.result.classList.add('active');
+        }
+
+        function displayQuiz(quiz) {
+            quizQuestionsContainer.innerHTML = '';
+            quiz.forEach((q, index) => {
+                const questionEl = document.createElement('div');
+                questionEl.className = 'question-item';
+                
+                const questionText = document.createElement('p');
+                questionText.textContent = `${index + 1}. ${q.question}`;
+                
+                const optionsGrid = document.createElement('div');
+                optionsGrid.className = 'options-grid';
+
+                const optionLetters = ['A', 'B', 'C', 'D'];
+                q.options.forEach((opt, i) => {
+                    const optionEl = document.createElement('div');
+                    optionEl.className = 'option';
+                    optionEl.textContent = `${optionLetters[i]}) ${opt}`;
+                    optionEl.dataset.letter = optionLetters[i];
+                    
+                    optionEl.addEventListener('click', () => {
+                        // Remove selection from siblings
+                        optionsGrid.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
+                        optionEl.classList.add('selected');
+
+                        // Check answer
+                        optionsGrid.querySelectorAll('.option').forEach(o => {
+                            o.classList.remove('correct', 'incorrect');
+                            if (o.dataset.letter === q.answer) {
+                                o.classList.add('correct');
+                            } else if (o.classList.contains('selected')) {
+                                o.classList.add('incorrect');
+                            }
+                        });
+                    });
+                    optionsGrid.appendChild(optionEl);
+                });
+
+                questionEl.appendChild(questionText);
+                questionEl.appendChild(optionsGrid);
+                quizQuestionsContainer.appendChild(questionEl);
+            });
+        }
+
+        generateBtn.addEventListener('click', async () => {
+            const topic = topicInput.value;
+            if (!topic) {
+                alert('Please enter a topic.');
+                return;
+            }
+
+            // UI state: loading
+            loader.style.display = 'block';
+            btnText.textContent = 'Generating...';
+            generateBtn.disabled = true;
+            resultsSection.style.display = 'none';
+            Object.values(nodes).forEach(n => n.classList.remove('active'));
+
+            try {
+                const response = await fetch(`${ORCHESTRATOR_URL}/study`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ topic }),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'An unknown error occurred.');
+                }
+
+                const data = await response.json();
+
+                // Display results
+                knowledgeText.textContent = data.knowledge;
+                displayQuiz(data.quiz);
+                pipelineTrace.textContent = JSON.stringify(data.pipeline_trace, null, 2);
+                
+                resultsSection.style.display = 'flex';
+                
+                // Animate pipeline
+                await animatePipeline(data.pipeline_trace);
+
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+                resultsSection.style.display = 'none';
+            } finally {
+                // UI state: reset
+                loader.style.display = 'none';
+                btnText.textContent = 'Generate Quiz';
+                generateBtn.disabled = false;
+            }
+        });
+        
+        // --- Status Bar Logic ---
+        const daemonStatusLight = document.getElementById('daemon-status-light');
+        const daemonStatusText = document.getElementById('daemon-status-text');
+        const servicesStatusText = document.getElementById('services-status-text');
+
+        async function checkStatus() {
+            try {
+                const response = await fetch(`${ORCHESTRATOR_URL}/pipeline`);
+                if (response.ok) {
+                    const data = await response.json();
+                    daemonStatusLight.className = 'status-light green';
+                    daemonStatusText.textContent = 'Daemon Status: Connected';
+                    servicesStatusText.textContent = `Registered Services: ${data.registered_services}`;
+                } else {
+                    throw new Error('Pipeline endpoint not ok');
+                }
+            } catch (error) {
+                daemonStatusLight.className = 'status-light red';
+                daemonStatusText.textContent = 'Daemon Status: Unreachable';
+                servicesStatusText.textContent = 'Registered Services: 0';
+            }
+        }
+
+        // Check status on load and then every 10 seconds
+        checkStatus();
+        setInterval(checkStatus, 10000);
+
+    </script>
+</body>
+</html>
