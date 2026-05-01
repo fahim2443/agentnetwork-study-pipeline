@@ -41,6 +41,11 @@ echo "✓ Orchestrator Agent is alive."
 echo ""
 
 echo "Step 2: Discovering services on P2P mesh..."
+export ANET_BASE_URL=http://127.0.0.1:13921
+export ANET_TOKEN=$(cat /tmp/anet-p2p-u1/.anet/api_token)
+export HOME=/tmp/anet-p2p-u1
+
+# Now list
 anet svc list
 echo "✓ Service list retrieved."
 echo ""

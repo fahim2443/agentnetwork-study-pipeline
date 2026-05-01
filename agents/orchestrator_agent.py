@@ -67,7 +67,7 @@ def call_service_via_anet(peer_id: str, service_name: str, path: str, body: dict
              "--method", "POST",
              "--header", "Content-Type=application/json",
              "--body", json.dumps(body)],
-            capture_output=True, text=True, env=env, timeout=15
+            capture_output=True, text=True, env=env, timeout=30
         )
         if result.returncode == 0 and result.stdout.strip():
             output = result.stdout.strip()
@@ -115,8 +115,8 @@ async def study(request: StudyRequest):
     knowledge_svc_name = discover_service("knowledge")
     
     if knowledge_svc_name:
-        pipeline_trace.append({"step": "Discover Knowledge Service", "status": "success", "details": f"Found '{knowledge_svc_name}' via anet P2P mesh discovery"})
         peer_id_k, svc_k = knowledge_svc_name
+        pipeline_trace.append({"step": "Discover Knowledge Service", "status": "success", "details": f"Found '{svc_k}' on peer {peer_id_k[:20]}... via anet P2P"})
         knowledge_data = call_service_via_anet(peer_id_k, svc_k, "/retrieve", {"topic": topic})
         if knowledge_data:
             pipeline_trace.append({"step": "Call Knowledge Service (P2P)", "status": "success", "details": "Called via anet svc call (true P2P)"})
@@ -143,8 +143,8 @@ async def study(request: StudyRequest):
     quiz_svc_name = discover_service("quiz")
 
     if quiz_svc_name:
-        pipeline_trace.append({"step": "Discover Quiz Service", "status": "success", "details": f"Found '{quiz_svc_name}' via anet P2P mesh discovery"})
         peer_id_q, svc_q = quiz_svc_name
+        pipeline_trace.append({"step": "Discover Quiz Service", "status": "success", "details": f"Found '{svc_q}' on peer {peer_id_q[:20]}... via anet P2P"})
         quiz_data = call_service_via_anet(peer_id_q, svc_q, "/generate", {"knowledge": knowledge_text, "topic": topic})
         if quiz_data:
              pipeline_trace.append({"step": "Call Quiz Service (P2P)", "status": "success", "details": "Called via anet svc call (true P2P)"})

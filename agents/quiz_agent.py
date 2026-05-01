@@ -9,6 +9,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
 
+# --- LLM Configuration ---
+OPENROUTER_API_KEY = "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"
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+
+_quiz_cache = {}
+
+
 # --- FastAPI App ---
 app = FastAPI()
 
@@ -33,7 +40,7 @@ class GenerateRequest(BaseModel):
 class GenerateResponse(BaseModel):
     quiz: list[QuizQuestion]
 
-# --- Pre-defined Question Bank ---
+# --- Pre-defined Question Bank (for fallback) ---
 QUESTION_BANK = {
     "recursion": [
         {
@@ -72,6 +79,63 @@ QUESTION_BANK = {
     ]
 }
 
+# --- Helper Functions ---
+
+def generate_quiz_from_llm(knowledge: str, topic: str) -> list:
+    try:
+        prompt = f"""Generate exactly 3 multiple choice questions about '{topic}' based on this knowledge:
+
+"{knowledge}"
+
+Return ONLY valid JSON array, no markdown, no explanation:
+[
+  {{
+    "question": "question text here",
+    "options": ["A) option1", "B) option2", "C) option3", "D) option4"],
+    "answer": "A"
+  }},
+  ...
+]
+
+Rules:
+- Every question must have EXACTLY 4 unique options
+- Options must be meaningfully different from each other  
+- The answer field must be A, B, C, or D
+- Questions must test understanding, not just memory"""
+
+        response = httpx.post(
+            OPENROUTER_URL,
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "deepseek/deepseek-chat",
+                "messages": [
+                    {"role": "system", "content": "You are a quiz generator. Always return valid JSON only."},
+                    {"role": "user", "content": prompt}
+                ],
+                "max_tokens": 600
+            },
+            timeout=20
+        )
+        data = response.json()
+        raw = data["choices"][0]["message"]["content"].strip()
+        # Strip markdown if present
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        questions = json.loads(raw.strip())
+        # Validate each question has 4 options
+        valid = []
+        for q in questions:
+            if len(q.get("options", [])) == 4 and q.get("answer") in ["A","B","C","D"]:
+                valid.append(q)
+        return valid[:3] if valid else []
+    except Exception as e:
+        print(f"[LLM quiz] error: {e}")
+        return []
 
 def generate_real_questions_from_text(knowledge: str, topic: str) -> list[dict]:
     """
@@ -87,7 +151,6 @@ def generate_real_questions_from_text(knowledge: str, topic: str) -> list[dict]:
             questions.extend(bank_questions)
 
     # Question 1: Identify the core definition
-    # Looks for sentences like "A [topic] is a [definition]."
     match = re.search(r"is a (?:way|method|set|block|collection|blueprint|sequence|format|process|field|model)\s(?:of|for)\s(.+?)\.", knowledge, re.IGNORECASE)
     if match:
         definition_part = match.group(1)
@@ -107,7 +170,7 @@ def generate_real_questions_from_text(knowledge: str, topic: str) -> list[dict]:
             "answer": chr(65 + answer_index)
         })
 
-    # Question 2: Find a key characteristic (e.g., LIFO, FIFO, mutable)
+    # Question 2: Find a key characteristic
     key_characteristics = {
         "LIFO": "FIFO", "FIFO": "LIFO",
         "mutable": "immutable", "immutable": "mutable",
@@ -123,46 +186,35 @@ def generate_real_questions_from_text(knowledge: str, topic: str) -> list[dict]:
                 "options": [f"{chr(65+i)}) {opt}" for i, opt in enumerate(options)],
                 "answer": chr(65 + answer_index)
             })
-            break # Add only one such question
+            break
 
     # Question 3: True/False from a sentence in the text
     sentences = [s.strip() for s in knowledge.split('.') if len(s.strip()) > 20]
     if sentences:
         true_statement = random.choice(sentences)
-        # Make a plausible false statement by negating a keyword
         false_statement = true_statement.replace(" is ", " is not ").replace(" are ", " are not ").replace(" must ", " must not ")
-        
         options = [true_statement, false_statement]
         random.shuffle(options)
         is_true_first = options[0] == true_statement
-        
         questions.append({
             "question": f"Which of the following statements about {topic} is TRUE?",
             "options": [f"A) {options[0]}", f"B) {options[1]}"],
             "answer": "A" if is_true_first else "B"
         })
 
-    # Fallback if no questions were generated
     if not questions:
-        return [{
-            "question": f"Is '{topic}' a concept in computer science?",
-            "options": ["A) Yes", "B) No"],
-            "answer": "A"
-        }]
+        return [{"question": f"Is '{topic}' a concept in computer science?", "options": ["A) Yes", "B) No"], "answer": "A"}]
 
-    # Clean up options and return unique questions
     final_questions = []
     seen_questions = set()
     for q in questions:
         if q["question"] not in seen_questions:
-            # Ensure options are just the text, not "A) text"
             cleaned_options = [re.sub(r'^[A-D]\)\s*', '', opt) for opt in q["options"]]
             q["options"] = cleaned_options
             final_questions.append(q)
             seen_questions.add(q["question"])
 
-    return final_questions[:3] # Return max 3 questions
-
+    return final_questions[:3]
 
 # --- API Endpoints ---
 @app.get("/health")
@@ -179,17 +231,55 @@ async def meta():
 
 @app.post("/generate", response_model=GenerateResponse)
 async def generate(request: GenerateRequest):
-    generated_questions = generate_real_questions_from_text(request.knowledge, request.topic)
+    ck = request.topic.lower().strip()
+    for key in _quiz_cache:
+        if key in ck or ck in key:
+            print(f"[cache] HIT for {request.topic}")
+            return GenerateResponse(quiz=[QuizQuestion(**q) for q in _quiz_cache[key]])
+    # First, try to generate from LLM
+    generated_questions = generate_quiz_from_llm(request.knowledge, request.topic)
+
+    # If LLM fails or returns no valid questions, use the template fallback
+    if not generated_questions:
+        print("[Quiz Agent] LLM generation failed or returned empty, using template fallback.")
+        generated_questions = generate_real_questions_from_text(request.knowledge, request.topic)
 
     # Ensure we always return a valid list of Pydantic models
     if not generated_questions:
         quiz_questions = [QuizQuestion(question="No quiz could be generated for this topic.", options=["OK"], answer="A")]
     else:
-        # Convert dicts to QuizQuestion objects
         quiz_questions = [QuizQuestion(**q) for q in generated_questions]
 
-
     return GenerateResponse(quiz=quiz_questions)
+
+
+# Pre-warm cache on startup
+import threading
+def _prewarm():
+    import time
+    time.sleep(3)  # wait for app to fully start
+    topics = ["recursion", "variables", "loops", "functions", 
+              "lists", "sorting", "stack", "queue", "oop", "binary search"]
+    for topic in topics:
+        try:
+            kb = {"recursion":"A recursive function calls itself with a base case to stop.",
+                  "variables":"Variables store data values in named memory locations.",
+                  "loops":"Loops repeat code while a condition is true.",
+                  "functions":"Functions are reusable blocks of code.",
+                  "lists":"Lists are ordered mutable sequences.",
+                  "sorting":"Sorting arranges data in a specific order.",
+                  "stack":"A stack is LIFO - last in first out.",
+                  "queue":"A queue is FIFO - first in first out.",
+                  "oop":"OOP organizes code around objects with data and methods.",
+                  "binary search":"Binary search halves the search space each step."}
+            knowledge = kb.get(topic, f"{topic} is a core CS concept.")
+            result = generate_quiz_from_llm(knowledge, topic)
+            if result:
+                _quiz_cache[topic] = result
+                print(f"[prewarm] cached: {topic}")
+        except Exception as e:
+            print(f"[prewarm] failed {topic}: {e}")
+threading.Thread(target=_prewarm, daemon=True).start()
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=7102)

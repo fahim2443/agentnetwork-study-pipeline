@@ -43,7 +43,7 @@ anet svc register \
 
 echo ""
 echo "2. Registering Quiz Agent (quiz-svc)..."
-anet svc register \
+ANET_BASE_URL=http://127.0.0.1:13922 ANET_TOKEN=$(HOME=/tmp/anet-p2p-u2 anet auth token print) HOME=/tmp/anet-p2p-u2 anet svc register \
   --name quiz-svc \
   --endpoint http://127.0.0.1:7102 \
   --paths /generate,/health,/meta \

@@ -6,6 +6,10 @@ from pydantic import BaseModel
 import httpx
 import re
 
+# --- LLM Configuration ---
+OPENROUTER_API_KEY = "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"
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+
 # --- Expanded and Improved Knowledge Base ---
 KNOWLEDGE_BASE = {
     "recursion": "Recursion in computer science is a method of solving a problem where the solution depends on solutions to smaller instances of the same problem. A recursive function must have a 'base case' to prevent infinite loops, and a 'recursive step' where it calls itself. It's elegant for tasks like traversing tree structures.",
@@ -44,17 +48,31 @@ class RetrieveResponse(BaseModel):
     knowledge: str
     source: str
 
-@app.get("/health")
-async def health():
-    return {"status": "ok"}
+# --- Helper Functions ---
 
-@app.get("/meta")
-async def meta():
-    return {
-        "name": "knowledge-svc",
-        "skill": "knowledge",
-        "description": "P2P knowledge retrieval agent for CS topics"
-    }
+def get_knowledge_from_llm(topic: str) -> str:
+    try:
+        response = httpx.post(
+            OPENROUTER_URL,
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "deepseek/deepseek-chat",
+                "messages": [
+                    {"role": "system", "content": "You are a CS tutor. Explain topics clearly in 3-4 sentences suitable for beginners. Be concrete and specific."},
+                    {"role": "user", "content": f"Explain '{topic}' in computer science in 3-4 sentences."}
+                ],
+                "max_tokens": 200
+            },
+            timeout=15
+        )
+        data = response.json()
+        return data["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        print(f"[LLM] error: {e}")
+        return f"{topic} is an important concept in computer science. It involves structured problem-solving approaches used in software development."
 
 def find_knowledge(topic: str) -> str | None:
     """
@@ -91,17 +109,30 @@ def find_knowledge(topic: str) -> str | None:
     # 4. If no match, return None
     return None
 
+# --- API Endpoints ---
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+@app.get("/meta")
+async def meta():
+    return {
+        "name": "knowledge-svc",
+        "skill": "knowledge",
+        "description": "P2P knowledge retrieval agent for CS topics"
+    }
+
 @app.post("/retrieve", response_model=RetrieveResponse)
 async def retrieve(request: RetrieveRequest):
     knowledge = find_knowledge(request.topic)
     source = "agent-knowledge-base"
 
-    if knowledge:
-        return RetrieveResponse(knowledge=knowledge, source=source)
-    else:
-        # Fallback message if no local knowledge is found
-        fallback_knowledge = f"No specific information was found for '{request.topic}' in the local knowledge base. This topic might be too specific or outside the current scope of computer science fundamentals. Try a broader topic like 'algorithms' or 'data structures'."
-        return RetrieveResponse(knowledge=fallback_knowledge, source="agent-knowledge-base-fallback")
+    if not knowledge:
+        source = "agent-knowledge-llm"
+        knowledge = get_knowledge_from_llm(request.topic)
+
+    return RetrieveResponse(knowledge=knowledge, source=source)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=7101)
