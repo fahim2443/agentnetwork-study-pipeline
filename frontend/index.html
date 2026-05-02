@@ -3,363 +3,604 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AgentNetwork Study Pipeline</title>
+    <title>AgentNetwork Study Pipeline v2</title>
     <style>
         :root {
-            --bg-color: #1a1a1a;
-            --text-color: #e0e0e0;
-            --primary-color: #00aaff;
-            --secondary-color: #2c2c2c;
-            --border-color: #444;
-            --success-color: #28a745;
-            --error-color: #dc3545;
-            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --bg-color: #0d1117;
+            --text-color: #c9d1d9;
+            --accent-color: #58a6ff;
+            --border-color: #30363d;
+            --card-bg: #161b22;
+            --green-glow: #3fb950;
+            --red-glow: #f85149;
+            --blue-glow: #58a6ff;
+            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
         }
         body {
             font-family: var(--font-family);
             background-color: var(--bg-color);
             color: var(--text-color);
             margin: 0;
-            padding: 2rem;
+            padding: 1rem 2rem;
+            overflow-x: hidden;
+        }
+        .main-container {
             display: flex;
             flex-direction: column;
-            align-items: center;
+            max-width: 1200px;
+            margin: 0 auto;
         }
-        .container {
-            width: 100%;
-            max-width: 800px;
+        header {
+            text-align: center;
+            margin-bottom: 1rem;
         }
         h1 {
-            color: var(--primary-color);
-            text-align: center;
-            font-size: 2.5rem;
-            margin-bottom: 0.5rem;
+            font-size: 2.2rem;
+            color: var(--accent-color);
+            margin-bottom: 0.25rem;
         }
-        .subtitle {
-            text-align: center;
-            color: #aaa;
-            margin-bottom: 2rem;
+        header p {
+            font-size: 1.1rem;
+            color: #8b949e;
         }
-        .input-container {
+        .input-section {
             display: flex;
             gap: 1rem;
-            margin-bottom: 2rem;
+            margin-bottom: 1rem;
         }
         #topic-input {
             flex-grow: 1;
-            padding: 0.8rem 1rem;
-            font-size: 1rem;
-            background-color: var(--secondary-color);
+            background-color: var(--card-bg);
             color: var(--text-color);
             border: 1px solid var(--border-color);
-            border-radius: 8px;
-            outline: none;
-        }
-        #topic-input:focus {
-            border-color: var(--primary-color);
+            border-radius: 6px;
+            padding: 0.75rem;
+            font-size: 1rem;
         }
         #generate-btn {
-            padding: 0.8rem 1.5rem;
-            font-size: 1rem;
-            font-weight: bold;
-            background-color: var(--primary-color);
-            color: #fff;
+            background-color: var(--accent-color);
+            color: var(--bg-color);
             border: none;
-            border-radius: 8px;
+            border-radius: 6px;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 600;
             cursor: pointer;
-            transition: background-color 0.2s;
         }
         #generate-btn:disabled {
-            background-color: #555;
+            background-color: #30363d;
             cursor: not-allowed;
         }
-        #generate-btn:not(:disabled):hover {
-            background-color: #0088cc;
+        .visualization-container {
+            width: 100%;
+            height: 40vh;
+            min-height: 350px;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            position: relative;
         }
-        .output-section {
-            background-color: var(--secondary-color);
+        #network-svg {
+            width: 100%;
+            height: 100%;
+        }
+        .node-circle {
+            transition: all 0.3s ease;
+        }
+        .node-circle.active {
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        .node-text {
+            font-family: var(--font-family);
+            font-size: 14px;
+            font-weight: 500;
+        }
+        #packet {
+            fill: var(--blue-glow);
+            r: 8px;
+            filter: drop-shadow(0 0 5px var(--blue-glow));
+            display: none;
+        }
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+        .card {
+            background-color: var(--card-bg);
             border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 1.5rem;
+        }
+        .card h2 {
+            margin-top: 0;
+            color: var(--accent-color);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.5rem;
             margin-bottom: 1rem;
         }
-        h2 {
-            color: var(--primary-color);
-            border-bottom: 2px solid var(--border-color);
-            padding-bottom: 0.5rem;
-            margin-top: 0;
+        #knowledge-card p { line-height: 1.6; }
+        .quiz-questions { display: flex; flex-direction: column; gap: 1.5rem; }
+        .question-item p { font-weight: 600; margin: 0 0 0.75rem 0; }
+        .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+        .option {
+            background-color: #21262d;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
         }
-        #knowledge-output {
-            line-height: 1.6;
-        }
-        .quiz-question {
-            margin-bottom: 1.5rem;
-        }
-        .quiz-question p {
-            margin: 0 0 0.8rem 0;
-            font-weight: bold;
-        }
-        .quiz-options {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-        .quiz-option {
-            display: block;
-            background-color: #333;
-            padding: 0.8rem;
+        .option:hover { border-color: var(--accent-color); }
+        .option.correct { background-color: rgba(63, 185, 80, 0.2); border-color: var(--green-glow); }
+        .option.incorrect { background-color: rgba(248, 81, 73, 0.2); border-color: var(--red-glow); }
+        
+        .explain-btn {
+            background: none;
+            border: 1px solid var(--border-color);
+            color: #8b949e;
+            padding: 0.4rem 0.8rem;
             border-radius: 6px;
             cursor: pointer;
-            transition: background-color 0.2s;
-            border: 1px solid transparent;
+            margin-top: 1rem;
+            display: none;
         }
-        .quiz-option:hover {
-            background-color: #444;
+        .explain-btn:hover { background-color: #21262d; }
+        .explanation-card {
+            background-color: #21262d;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 1rem;
+            margin-top: 1rem;
+            display: none;
         }
-        .quiz-option.selected {
-            border-color: var(--primary-color);
+        .explanation-card p { margin: 0; }
+        .explanation-card .tip { margin-top: 0.75rem; font-style: italic; color: #8b949e; }
+
+        .learning-path-container {
+            margin-top: 1.5rem;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
         }
-        .quiz-option.correct {
-            background-color: var(--success-color);
-            color: #fff;
+        .learning-path-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
         }
-        .quiz-option.incorrect {
-            background-color: var(--error-color);
-            color: #fff;
+        .learning-path-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
         }
-        .status-bar {
+        .learning-path-card:hover { border-color: var(--accent-color); transform: translateY(-3px); }
+
+        .stats-bar {
             position: fixed;
             bottom: 0;
             left: 0;
-            width: 100%;
-            background-color: #222;
-            padding: 0.5rem 1rem;
-            font-size: 0.9rem;
+            right: 0;
+            background-color: var(--card-bg);
+            border-top: 1px solid var(--border-color);
+            padding: 0.5rem 2rem;
+            font-size: 0.85rem;
+            color: #8b949e;
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            border-top: 1px solid var(--border-color);
         }
-        .status-light {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            margin-right: 8px;
-            display: inline-block;
-        }
-        .status-light.red { background-color: var(--error-color); }
-        .status-light.green { background-color: var(--success-color); }
-        .status-light.orange { background-color: #ff9800; }
+        .status-light { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
+        .status-light.green { background-color: var(--green-glow); }
+        .status-light.red { background-color: var(--red-glow); }
+
         .loader {
-            display: none;
-            text-align: center;
-            padding: 2rem;
+            width: 14px; height: 14px; border: 2px solid #fff; border-top-color: transparent;
+            border-radius: 50%; animation: spin 1s linear infinite; display: inline-block;
         }
-        .dot-flashing {
-            position: relative;
-            width: 10px;
-            height: 10px;
-            border-radius: 5px;
-            background-color: var(--primary-color);
-            color: var(--primary-color);
-            animation: dotFlashing 1s infinite linear alternate;
-            animation-delay: .5s;
-            display: inline-block;
-        }
-        .dot-flashing::before, .dot-flashing::after {
-            content: '';
-            display: inline-block;
-            position: absolute;
-            top: 0;
-        }
-        .dot-flashing::before {
-            left: -15px;
-            width: 10px;
-            height: 10px;
-            border-radius: 5px;
-            background-color: var(--primary-color);
-            color: var(--primary-color);
-            animation: dotFlashing 1s infinite alternate;
-            animation-delay: 0s;
-        }
-        .dot-flashing::after {
-            left: 15px;
-            width: 10px;
-            height: 10px;
-            border-radius: 5px;
-            background-color: var(--primary-color);
-            color: var(--primary-color);
-            animation: dotFlashing 1s infinite alternate;
-            animation-delay: 1s;
-        }
-        @keyframes dotFlashing {
-            0% { background-color: var(--primary-color); }
-            50%, 100% { background-color: rgba(0, 170, 255, 0.2); }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        @media (max-width: 768px) {
+            .content-grid, .learning-path-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>AgentNetwork Study Pipeline</h1>
-        <p class="subtitle">Enter a Computer Science topic to get an explanation and a quiz.</p>
-        
-        <div class="input-container">
-            <input type="text" id="topic-input" placeholder="e.g., Recursion, Binary Search, Stacks...">
+
+    <div class="main-container">
+        <header>
+            <h1>AgentNetwork Study Pipeline</h1>
+            <p>P2P Multi-Agent Learning System</p>
+        </header>
+
+        <section class="input-section">
+            <input type="text" id="topic-input" placeholder="Enter a CS topic (e.g., Binary Search)">
             <button id="generate-btn">Generate</button>
+        </section>
+
+        <div class="visualization-container">
+            <svg id="network-svg" width="100%" height="400" viewBox="0 0 800 400" preserveAspectRatio="xMidYMid meet">
+                <!-- Paths (absolute pixel coordinates) -->
+                <path id="path-user-orch" d="M 80 320 C 200 320, 300 200, 400 200" stroke="#30363d" stroke-width="2" fill="none" stroke-dasharray="5,5"/>
+                <path id="path-orch-knowledge" d="M 400 200 C 300 200, 200 80, 160 80" stroke="#30363d" stroke-width="2" fill="none" stroke-dasharray="5,5"/>
+                <path id="path-knowledge-orch" d="M 160 80 C 200 80, 300 200, 400 200" stroke="#30363d" stroke-width="2" fill="none" stroke-dasharray="5,5"/>
+                <path id="path-orch-quiz" d="M 400 200 C 500 200, 580 80, 640 80" stroke="#30363d" stroke-width="2" fill="none" stroke-dasharray="5,5"/>
+                <path id="path-quiz-orch" d="M 640 80 C 580 80, 500 200, 400 200" stroke="#30363d" stroke-width="2" fill="none" stroke-dasharray="5,5"/>
+                <path id="path-orch-explain" d="M 400 200 C 500 200, 580 320, 640 320" stroke="#30363d" stroke-width="2" fill="none" stroke-dasharray="5,5"/>
+                <path id="path-explain-orch" d="M 640 320 C 580 320, 500 200, 400 200" stroke="#30363d" stroke-width="2" fill="none" stroke-dasharray="5,5"/>
+                <path id="path-orch-user" d="M 400 200 C 300 200, 200 320, 80 320" stroke="#30363d" stroke-width="2" fill="none" stroke-dasharray="5,5"/>
+
+                <!-- Nodes (absolute positions) -->
+                <circle id="node-orchestrator" class="node-circle" cx="400" cy="200" r="35" fill="#21262d" stroke="#58a6ff" stroke-width="2"/>
+                <text class="node-text" x="400" y="200" dy=".3em" text-anchor="middle" fill="#c9d1d9">Orchestrator</text>
+
+                <circle id="node-knowledge" class="node-circle" cx="160" cy="80" r="30" fill="#21262d" stroke="#8b949e" stroke-width="2"/>
+                <text class="node-text" x="160" y="80" dy=".3em" text-anchor="middle" fill="#c9d1d9">Knowledge</text>
+
+                <circle id="node-quiz" class="node-circle" cx="640" cy="80" r="30" fill="#21262d" stroke="#8b949e" stroke-width="2"/>
+                <text class="node-text" x="640" y="80" dy=".3em" text-anchor="middle" fill="#c9d1d9">Quiz</text>
+
+                <circle id="node-user" class="node-circle" cx="80" cy="320" r="30" fill="#21262d" stroke="#8b949e" stroke-width="2"/>
+                <text class="node-text" x="80" y="320" dy=".3em" text-anchor="middle" fill="#c9d1d9">User</text>
+
+                <circle id="node-explanation" class="node-circle" cx="640" cy="320" r="30" fill="#21262d" stroke="#8b949e" stroke-width="2"/>
+                <text class="node-text" x="640" y="320" dy=".3em" text-anchor="middle" fill="#c9d1d9">Explanation</text>
+
+                <!-- Packet for animation -->
+                <circle id="packet" cx="0" cy="0" r="8" style="display:none" />
+            </svg>
         </div>
 
-        <div class="loader" id="loader">
-            <p>Agents are thinking...</p>
-            <div class="dot-flashing"></div>
-        </div>
-
-        <div id="output-container" style="display: none;">
-            <div class="output-section">
-                <h2 id="knowledge-title"></h2>
-                <div id="knowledge-output"></div>
+        <div id="results-container">
+            <div class="content-grid" id="content-grid">
+                <div class="card" id="knowledge-card">
+                    <h2>🧠 Knowledge</h2>
+                    <p id="knowledge-text"></p>
+                </div>
+                <div class="card" id="quiz-card">
+                    <h2>📝 Quiz</h2>
+                    <div class="quiz-questions" id="quiz-questions"></div>
+                </div>
             </div>
-            <div class="output-section">
-                <h2>Quiz</h2>
-                <div id="quiz-output"></div>
+            <div class="learning-path-container" id="learning-path-container">
+                <div class="card">
+                    <h2>🗺️ Learning Path</h2>
+                    <div class="learning-path-grid" id="learning-path-grid"></div>
+                </div>
             </div>
         </div>
     </div>
 
-    <div class="status-bar">
-        <div id="daemon-status">
-            <span class="status-light red"></span>
-            <span>Daemon: Disconnected</span>
+    <div class="stats-bar">
+        <div>
+            <span id="daemon-status-light" class="status-light red"></span>
+            <span id="daemon-status-text">Daemon: Disconnected</span>
         </div>
-        <div id="services-status">
-            <span></span>
+        <div>
+            <span>Active Agents: <b id="active-agents-count">0</b></span> |
+            <span>P2P Calls: <b id="p2p-calls-count">0</b></span> |
+            <span>Last Discovery: <b id="last-discovery-text">N/A</b></span>
         </div>
     </div>
 
     <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const ORCHESTRATOR_URL = 'http://localhost:7103';
+        let p2pCallCount = 0;
+
+        // --- DOM Elements ---
         const topicInput = document.getElementById('topic-input');
         const generateBtn = document.getElementById('generate-btn');
-        const outputContainer = document.getElementById('output-container');
-        const knowledgeTitle = document.getElementById('knowledge-title');
-        const knowledgeOutput = document.getElementById('knowledge-output');
-        const quizOutput = document.getElementById('quiz-output');
-        const loader = document.getElementById('loader');
-        const daemonStatus = document.getElementById('daemon-status');
-        const servicesStatus = document.getElementById('services-status');
+        const contentGrid = document.getElementById('content-grid');
+        const learningPathContainer = document.getElementById('learning-path-container');
+        const knowledgeText = document.getElementById('knowledge-text');
+        const quizQuestionsContainer = document.getElementById('quiz-questions');
+        const learningPathGrid = document.getElementById('learning-path-grid');
+        
+        // --- Status Bar Elements ---
+        const daemonStatusLight = document.getElementById('daemon-status-light');
+        const daemonStatusText = document.getElementById('daemon-status-text');
+        const activeAgentsCount = document.getElementById('active-agents-count');
+        const p2pCallsCount = document.getElementById('p2p-calls-count');
+        const lastDiscoveryText = document.getElementById('last-discovery-text');
 
-        const ORCHESTRATOR_URL = 'http://localhost:7103';
+        // --- SVG Animation Elements ---
+        const packet = document.getElementById('packet');
+        const nodes = {
+            user: document.getElementById('node-user'),
+            orchestrator: document.getElementById('node-orchestrator'),
+            knowledge: document.getElementById('node-knowledge'),
+            quiz: document.getElementById('node-quiz'),
+            explanation: document.getElementById('node-explanation'),
+        };
 
-        async function checkDaemonStatus() {
-            try {
-                const response = await fetch(`${ORCHESTRATOR_URL}/health`);
-                if (response.ok) {
-                    daemonStatus.innerHTML = '<span class="status-light green"></span><span>Daemon: Connected</span>';
-                    // Since the service count from `anet svc list` can be unreliable during startup,
-                    // we'll show a static message once the orchestrator is reachable.
-                    servicesStatus.innerHTML = '<span>3 Agents Active</span>';
-                } else {
-                    throw new Error('Daemon not healthy');
-                }
-            } catch (error) {
-                daemonStatus.innerHTML = '<span class="status-light red"></span><span>Daemon: Disconnected</span>';
-                servicesStatus.innerHTML = '';
-            }
-        }
+        // --- Event Listeners ---
+        generateBtn.addEventListener('click', () => handleGenerate(topicInput.value));
 
-        generateBtn.addEventListener('click', async () => {
-            const topic = topicInput.value.trim();
-            if (!topic) {
-                alert('Please enter a topic.');
-                return;
-            }
+        // --- Core Functions ---
+        async function handleGenerate(topic) {
+            if (!topic) { alert('Please enter a topic.'); return; }
 
             generateBtn.disabled = true;
-            loader.style.display = 'block';
-            outputContainer.style.display = 'none';
+            generateBtn.innerHTML = '<div class="loader"></div>';
+            contentGrid.style.opacity = 0;
+            learningPathContainer.style.opacity = 0;
 
             try {
+                await runStudyAnimation();
                 const response = await fetch(`${ORCHESTRATOR_URL}/study`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ topic })
+                    body: JSON.stringify({ topic }),
                 });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.detail || 'An unknown error occurred.');
-                }
-
+                if (!response.ok) throw new Error((await response.json()).detail || 'Study request failed');
+                
                 const data = await response.json();
-                renderOutput(data);
+                renderResults(data);
+                fetchAndRenderLearningPath(topic);
+                
+                // Update stats: increment P2P calls by 2 (knowledge + quiz) for full pipeline
+                p2pCallCount += 2;
+                p2pCallsCount.textContent = p2pCallCount;
+                
+                // Extract last two discovered services from pipeline_trace
+                const discoverySteps = data.pipeline_trace.filter(t => 
+                    t.step && t.step.includes('Discover') && 
+                    t.status === 'success' && 
+                    t.details
+                );
+                if (discoverySteps.length > 0) {
+                    const lastTwoServices = discoverySteps
+                        .slice(-2)
+                        .map(t => {
+                            // Extract service name from details field (e.g., "Discovered 'knowledge-svc'")
+                            const match = t.details.match(/['"]([^'"]+)['"]/);
+                            return match ? match[1] : 'unknown';
+                        })
+                        .reverse();
+                    lastDiscoveryText.textContent = lastTwoServices.join(', ');
+                }
 
             } catch (error) {
                 alert(`Error: ${error.message}`);
             } finally {
                 generateBtn.disabled = false;
-                loader.style.display = 'none';
+                generateBtn.innerHTML = 'Generate';
             }
-        });
-
-        function renderOutput(data) {
-            knowledgeTitle.textContent = `Knowledge: ${data.topic}`;
-            knowledgeOutput.textContent = data.knowledge;
-            
-            quizOutput.innerHTML = '';
-            data.quiz.forEach((q, index) => {
-                const questionEl = document.createElement('div');
-                questionEl.className = 'quiz-question';
-                questionEl.innerHTML = `<p>${index + 1}. ${q.question}</p>`;
-                
-                const optionsEl = document.createElement('div');
-                optionsEl.className = 'quiz-options';
-
-                // Deduplicate options before rendering
-                const uniqueOptions = [...new Set(q.options)];
-                
-                // If not enough unique options, skip question or handle appropriately
-                if (uniqueOptions.length < 2) return;
-
-                // Pad if less than 4
-                while (uniqueOptions.length < 4) {
-                    uniqueOptions.push("None of the above");
-                }
-
-                uniqueOptions.forEach(optionText => {
-                    const optionEl = document.createElement('label');
-                    optionEl.className = 'quiz-option';
-                    optionEl.textContent = optionText;
-                    optionEl.addEventListener('click', () => {
-                        // Remove selection from siblings
-                        Array.from(optionsEl.children).forEach(child => child.classList.remove('selected'));
-                        optionEl.classList.add('selected');
-                        
-                        // Check answer
-                        const selectedAnswerLetter = optionText.trim().charAt(0);
-                        if (selectedAnswerLetter === q.answer) {
-                            optionEl.classList.add('correct');
-                        } else {
-                            optionEl.classList.add('incorrect');
-                            // Highlight the correct one
-                            const correctOption = Array.from(optionsEl.children).find(child => child.textContent.trim().startsWith(q.answer));
-                            if (correctOption) {
-                                correctOption.classList.add('correct');
-                            }
-                        }
-                        // Disable further clicks
-                        Array.from(optionsEl.children).forEach(child => child.style.pointerEvents = 'none');
-                    });
-                    optionsEl.appendChild(optionEl);
-                });
-
-                questionEl.appendChild(optionsEl);
-                quizOutput.appendChild(questionEl);
-            });
-
-            outputContainer.style.display = 'block';
         }
 
-        // Initial and periodic checks
-        checkDaemonStatus();
-        setInterval(checkDaemonStatus, 5000);
+        function renderResults(data) {
+            knowledgeText.textContent = data.knowledge;
+            quizQuestionsContainer.innerHTML = '';
+            data.quiz.forEach((q, index) => {
+                const questionEl = document.createElement('div');
+                questionEl.className = 'question-item';
+                questionEl.innerHTML = `<p>${index + 1}. ${q.question}</p>`;
+                
+                const optionsGrid = document.createElement('div');
+                optionsGrid.className = 'options-grid';
+
+                const uniqueOptions = [...new Set(q.options)];
+                uniqueOptions.forEach(optText => {
+                    const optionEl = document.createElement('div');
+                    optionEl.className = 'option';
+                    optionEl.textContent = optText;
+                    optionEl.addEventListener('click', () => handleOptionClick(optionEl, q, optionsGrid));
+                    optionsGrid.appendChild(optionEl);
+                });
+
+                const explainBtn = document.createElement('button');
+                explainBtn.className = 'explain-btn';
+                explainBtn.textContent = '💡 Explain This';
+                explainBtn.onclick = () => handleExplain(q, questionEl);
+
+                const explanationCard = document.createElement('div');
+                explanationCard.className = 'explanation-card';
+
+                questionEl.append(optionsGrid, explainBtn, explanationCard);
+                quizQuestionsContainer.appendChild(questionEl);
+            });
+            contentGrid.style.opacity = 1;
+        }
+
+        function handleOptionClick(selectedOptionEl, question, grid) {
+            const isCorrect = selectedOptionEl.textContent.trim().startsWith(question.answer);
+            grid.querySelectorAll('.option').forEach(opt => {
+                opt.style.pointerEvents = 'none'; // Disable further clicks
+                if (opt.textContent.trim().startsWith(question.answer)) {
+                    opt.classList.add('correct');
+                }
+            });
+
+            if (isCorrect) {
+                selectedOptionEl.classList.add('correct');
+            } else {
+                selectedOptionEl.classList.add('incorrect');
+                const explainBtn = grid.parentElement.querySelector('.explain-btn');
+                explainBtn.style.display = 'block';
+                explainBtn.dataset.userAnswer = selectedOptionEl.textContent;
+            }
+        }
+
+        async function handleExplain(question, questionEl) {
+            const explainBtn = questionEl.querySelector('.explain-btn');
+            const explanationCard = questionEl.querySelector('.explanation-card');
+            const userAnswer = explainBtn.dataset.userAnswer;
+
+            explanationCard.style.display = 'block';
+            explanationCard.innerHTML = '<div class="loader"></div>';
+            
+            try {
+                await runExplainAnimation();
+                const response = await fetch(`${ORCHESTRATOR_URL}/explain`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        question: question.question,
+                        correct_answer: question.options.find(o => o.startsWith(question.answer)),
+                        user_answer: userAnswer,
+                        topic: topicInput.value
+                    }),
+                });
+                if (!response.ok) throw new Error('Explanation request failed');
+                
+                const data = await response.json();
+                explanationCard.innerHTML = `<p>${data.explanation}</p><p class="tip">💡 ${data.tip}</p>`;
+                
+                // Increment P2P calls by 1 for explanation agent
+                p2pCallCount++;
+                p2pCallsCount.textContent = p2pCallCount;
+                
+                // Update last discovery to include explanation-svc
+                const currentDiscovery = lastDiscoveryText.textContent;
+                if (currentDiscovery && currentDiscovery !== 'N/A') {
+                    const services = currentDiscovery.split(', ');
+                    services.push('explanation-svc');
+                    lastDiscoveryText.textContent = services.slice(-2).join(', ');
+                } else {
+                    lastDiscoveryText.textContent = 'explanation-svc';
+                }
+
+            } catch (error) {
+                explanationCard.innerHTML = `<p style="color: var(--red-glow);">${error.message}</p>`;
+            }
+        }
+
+        async function fetchAndRenderLearningPath(topic) {
+            try {
+                const response = await fetch(`${ORCHESTRATOR_URL}/learning-path`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ topic }),
+                });
+                if (!response.ok) return;
+                const data = await response.json();
+                
+                learningPathGrid.innerHTML = '';
+                data.topics.forEach(nextTopic => {
+                    const card = document.createElement('div');
+                    card.className = 'learning-path-card';
+                    card.innerHTML = `📚 Study Next: <b>${nextTopic}</b>`;
+                    card.onclick = () => {
+                        topicInput.value = nextTopic;
+                        handleGenerate(nextTopic);
+                    };
+                    learningPathGrid.appendChild(card);
+                });
+                learningPathContainer.style.opacity = 1;
+            } catch (error) {
+                console.error('Failed to fetch learning path:', error);
+            }
+        }
+
+        // --- Animation Functions ---
+        function animatePacket(pathId, reverse = false) {
+            return new Promise(resolve => {
+                const path = document.getElementById(pathId);
+                const duration = 1000; // 1 second
+                packet.style.display = 'block';
+                
+                let start = null;
+                function step(timestamp) {
+                    if (!start) start = timestamp;
+                    const progress = (timestamp - start) / duration;
+                    const pointProgress = reverse ? 1 - progress : progress;
+                    const point = path.getPointAtLength(path.getTotalLength() * Math.min(1, pointProgress));
+                    packet.setAttribute('cx', point.x);
+                    packet.setAttribute('cy', point.y);
+                    if (progress < 1) {
+                        requestAnimationFrame(step);
+                    } else {
+                        packet.style.display = 'none';
+                        resolve();
+                    }
+                }
+                requestAnimationFrame(step);
+            });
+        }
+
+        async function runStudyAnimation() {
+            const setNodeState = (node, color) => {
+                node.style.stroke = `var(--${color}-glow)`;
+                node.classList.add('active');
+            };
+            const resetNodes = () => Object.values(nodes).forEach(n => {
+                n.style.stroke = '#8b949e';
+                n.classList.remove('active');
+            });
+            resetNodes();
+            nodes.orchestrator.style.stroke = 'var(--accent-color)';
+
+            await animatePacket('path-user-orch');
+            setNodeState(nodes.orchestrator, 'blue');
+            await animatePacket('path-orch-knowledge');
+            setNodeState(nodes.knowledge, 'blue');
+            await new Promise(r => setTimeout(r, 500));
+            await animatePacket('path-orch-knowledge', true);
+            setNodeState(nodes.knowledge, 'green');
+            await animatePacket('path-orch-quiz');
+            setNodeState(nodes.quiz, 'blue');
+            await new Promise(r => setTimeout(r, 500));
+            await animatePacket('path-orch-quiz', true);
+            setNodeState(nodes.quiz, 'green');
+            await animatePacket('path-user-orch', true);
+            setNodeState(nodes.orchestrator, 'green');
+        }
+
+        async function runExplainAnimation() {
+            await animatePacket('path-orch-explain');
+            nodes.explanation.style.stroke = 'var(--blue-glow)';
+            nodes.explanation.classList.add('active');
+            await new Promise(r => setTimeout(r, 500));
+            await animatePacket('path-orch-explain', true);
+            nodes.explanation.style.stroke = 'var(--green-glow)';
+        }
+
+        // --- Status Polling ---
+        async function checkStatus() {
+            try {
+                // Check all 4 agent health endpoints in parallel
+                const agentPorts = [7101, 7102, 7103, 7104];
+                const healthChecks = agentPorts.map(port =>
+                    fetch(`http://localhost:${port}/health`)
+                        .then(r => r.ok ? r.json() : Promise.reject())
+                        .catch(() => null)
+                );
+                
+                const results = await Promise.allSettled(healthChecks);
+                const aliveAgents = results.filter(r => 
+                    r.status === 'fulfilled' && r.value && r.value.status === 'ok'
+                ).length;
+                
+                // Update daemon status
+                if (aliveAgents > 0) {
+                    daemonStatusLight.className = 'status-light green';
+                    daemonStatusText.textContent = 'Daemon: Connected';
+                } else {
+                    throw new Error();
+                }
+                
+                // Update active agents count
+                activeAgentsCount.textContent = aliveAgents;
+                
+            } catch (error) {
+                daemonStatusLight.className = 'status-light red';
+                daemonStatusText.textContent = 'Daemon: Disconnected';
+                activeAgentsCount.textContent = '0';
+            }
+        }
+
+        checkStatus();
+        setInterval(checkStatus, 10000);
+    });
     </script>
 </body>
 </html>

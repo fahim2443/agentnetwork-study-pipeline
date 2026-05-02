@@ -1,36 +1,17 @@
 #!/bin/bash
-# This script registers the 3 study pipeline agents to the anet P2P mesh.
-# It assumes a local daemon is running and its API token is available.
+# This script registers the agents to the anet P2P mesh.
 
 # Fail on any error
 set -e
 
-# --- Configuration ---
-# Use the first daemon by default
-ANET_DAEMON_URL="http://127.0.0.1:13921"
-ANET_TOKEN_PATH="/tmp/anet-p2p-u1/.anet/api_token"
-
-# If the first daemon's token doesn't exist, try the second one
-if [ ! -f "$ANET_TOKEN_PATH" ]; then
-  echo "Token for daemon 1 not found, trying daemon 2..."
-  ANET_DAEMON_URL="http://127.0.0.1:13922"
-  ANET_TOKEN_PATH="/tmp/anet-p2p-u2/.anet/api_token"
-fi
-
-if [ ! -f "$ANET_TOKEN_PATH" ]; then
-  echo "Error: anet API token not found in either /tmp/anet-p2p-u1 or /tmp/anet-p2p-u2."
-  echo "Please ensure the anet daemons are running (e.g., via 'bash scripts/two-node.sh start')."
-  exit 1
-fi
-
-export ANET_BASE_URL=$ANET_DAEMON_URL
-export ANET_TOKEN=$(cat $ANET_TOKEN_PATH)
-
-echo "--- Registering Agents to anet Mesh ($ANET_BASE_URL) ---"
+echo "--- Registering Agents to anet Mesh ---"
 echo ""
 
-echo "1. Registering Knowledge Agent (knowledge-svc)..."
-anet svc register \
+# --- Register Knowledge Agent to Daemon 1 ---
+echo "1. Registering Knowledge Agent (knowledge-svc) to daemon-1..."
+ANET_BASE_URL=http://127.0.0.1:13921 \
+ANET_TOKEN=$(HOME=/tmp/anet-p2p-u1 anet auth token print) \
+HOME=/tmp/anet-p2p-u1 anet svc register \
   --name knowledge-svc \
   --endpoint http://127.0.0.1:7101 \
   --paths /retrieve,/health,/meta \
@@ -42,8 +23,12 @@ anet svc register \
   --description "P2P knowledge retrieval agent for CS topics"
 
 echo ""
-echo "2. Registering Quiz Agent (quiz-svc)..."
-ANET_BASE_URL=http://127.0.0.1:13922 ANET_TOKEN=$(HOME=/tmp/anet-p2p-u2 anet auth token print) HOME=/tmp/anet-p2p-u2 anet svc register \
+
+# --- Register Quiz Agent to Daemon 2 ---
+echo "2. Registering Quiz Agent (quiz-svc) to daemon-2..."
+ANET_BASE_URL=http://127.0.0.1:13922 \
+ANET_TOKEN=$(HOME=/tmp/anet-p2p-u2 anet auth token print) \
+HOME=/tmp/anet-p2p-u2 anet svc register \
   --name quiz-svc \
   --endpoint http://127.0.0.1:7102 \
   --paths /generate,/health,/meta \
@@ -55,22 +40,47 @@ ANET_BASE_URL=http://127.0.0.1:13922 ANET_TOKEN=$(HOME=/tmp/anet-p2p-u2 anet aut
   --description "P2P quiz generation agent"
 
 echo ""
-echo "3. Registering Orchestrator Agent (orchestrator-svc)..."
-anet svc register \
+
+# --- Register Explanation Agent to Daemon 2 ---
+echo "3. Registering Explanation Agent (explanation-svc) to daemon-2..."
+ANET_BASE_URL=http://127.0.0.1:13922 \
+ANET_TOKEN=$(HOME=/tmp/anet-p2p-u2 anet auth token print) \
+HOME=/tmp/anet-p2p-u2 anet svc register \
+  --name explanation-svc \
+  --endpoint http://127.0.0.1:7104 \
+  --paths /explain,/health,/meta \
+  --modes rr \
+  --tags explanation,education,feedback \
+  --skill explanation \
+  --free \
+  --health-check /health \
+  --description "P2P explanation agent — explains wrong quiz answers"
+
+echo ""
+
+# --- Register Orchestrator Agent to Daemon 1 ---
+echo "4. Registering Orchestrator Agent (orchestrator-svc) to daemon-1..."
+ANET_BASE_URL=http://127.0.0.1:13921 \
+ANET_TOKEN=$(HOME=/tmp/anet-p2p-u1 anet auth token print) \
+HOME=/tmp/anet-p2p-u1 anet svc register \
   --name orchestrator-svc \
   --endpoint http://127.0.0.1:7103 \
-  --paths /study,/health,/pipeline \
+  --paths /study,/health,/pipeline,/explain,/learning-path \
   --modes rr \
   --tags orchestrator,education,pipeline \
   --skill study-pipeline \
   --free \
   --health-check /health \
-  --description "P2P study pipeline orchestrator — chains knowledge + quiz agents"
+  --description "P2P study pipeline orchestrator"
 
 echo ""
 echo "--------------------------------------------------"
-echo "✓ All 3 agents registered to anet mesh."
-echo "Verifying by listing all services:"
+echo "✓ All 4 agents registered to anet mesh."
+echo "Verifying by listing all services on both daemons:"
 echo ""
-anet svc list
+echo "--- Daemon 1 Services ---"
+ANET_BASE_URL=http://127.0.0.1:13921 ANET_TOKEN=$(HOME=/tmp/anet-p2p-u1 anet auth token print) HOME=/tmp/anet-p2p-u1 anet svc list
+echo ""
+echo "--- Daemon 2 Services ---"
+ANET_BASE_URL=http://127.0.0.1:13922 ANET_TOKEN=$(HOME=/tmp/anet-p2p-u2 anet auth token print) HOME=/tmp/anet-p2p-u2 anet svc list
 echo "--------------------------------------------------"

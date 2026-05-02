@@ -8,6 +8,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Any
 
+# --- LLM Configuration ---
+OPENROUTER_API_KEY = "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"
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+
 # --- FastAPI App ---
 app = FastAPI()
 
@@ -33,6 +37,23 @@ class StudyResponse(BaseModel):
     knowledge: str
     quiz: list[QuizQuestion]
     pipeline_trace: list[Dict[str, Any]]
+
+class ExplainRequest(BaseModel):
+    question: str
+    correct_answer: str
+    user_answer: str
+    topic: str
+
+class ExplainResponse(BaseModel):
+    explanation: str
+    tip: str
+
+class LearningPathRequest(BaseModel):
+    topic: str
+
+class LearningPathResponse(BaseModel):
+    topics: List[str]
+
 
 # --- anet P2P Helper Functions ---
 
@@ -112,61 +133,57 @@ async def study(request: StudyRequest):
     quiz_data = None
 
     # --- Step 1: Discover and Call Knowledge Agent ---
-    knowledge_svc_name = discover_service("knowledge")
+    knowledge_svc_info = discover_service("knowledge")
     
-    if knowledge_svc_name:
-        peer_id_k, svc_k = knowledge_svc_name
-        pipeline_trace.append({"step": "Discover Knowledge Service", "status": "success", "details": f"Found '{svc_k}' on peer {peer_id_k[:20]}... via anet P2P"})
+    if knowledge_svc_info:
+        peer_id_k, svc_k = knowledge_svc_info
+        pipeline_trace.append({"step": "Discover Knowledge Service", "status": "success", "details": f"Found '{svc_k}' on peer {peer_id_k[:12]}..."})
         knowledge_data = call_service_via_anet(peer_id_k, svc_k, "/retrieve", {"topic": topic})
         if knowledge_data:
-            pipeline_trace.append({"step": "Call Knowledge Service (P2P)", "status": "success", "details": "Called via anet svc call (true P2P)"})
+            pipeline_trace.append({"step": "Call Knowledge Service (P2P)", "status": "success", "details": "Called via anet svc call"})
         else:
-            pipeline_trace.append({"step": "Call Knowledge Service (P2P)", "status": "failed", "details": "anet call failed, attempting direct HTTP fallback"})
+            pipeline_trace.append({"step": "Call Knowledge Service (P2P)", "status": "failed", "details": "anet call failed, attempting HTTP fallback"})
     else:
-        pipeline_trace.append({"step": "Discover Knowledge Service", "status": "failed", "details": "Could not find service with skill 'knowledge', attempting direct HTTP fallback"})
+        pipeline_trace.append({"step": "Discover Knowledge Service", "status": "failed", "details": "Could not find 'knowledge' skill, attempting HTTP fallback"})
 
-    # Fallback to direct HTTP if P2P fails
     if not knowledge_data:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post("http://localhost:7101/retrieve", json={"topic": topic}, timeout=20.0)
                 response.raise_for_status()
                 knowledge_data = response.json()
-                pipeline_trace.append({"step": "Call Knowledge Service (HTTP Fallback)", "status": "success", "details": "Retrieved knowledge via direct HTTP call"})
+                pipeline_trace.append({"step": "Call Knowledge Service (HTTP Fallback)", "status": "success"})
         except (httpx.RequestError, httpx.HTTPStatusError) as e:
-            pipeline_trace.append({"step": "Call Knowledge Service (HTTP Fallback)", "status": "error", "details": str(e)})
-            raise HTTPException(status_code=503, detail="Knowledge agent is unreachable.")
+            raise HTTPException(status_code=503, detail=f"Knowledge agent unreachable: {e}")
 
     knowledge_text = knowledge_data.get("knowledge", "Error retrieving knowledge.")
 
     # --- Step 2: Discover and Call Quiz Agent ---
-    quiz_svc_name = discover_service("quiz")
+    quiz_svc_info = discover_service("quiz")
 
-    if quiz_svc_name:
-        peer_id_q, svc_q = quiz_svc_name
-        pipeline_trace.append({"step": "Discover Quiz Service", "status": "success", "details": f"Found '{svc_q}' on peer {peer_id_q[:20]}... via anet P2P"})
+    if quiz_svc_info:
+        peer_id_q, svc_q = quiz_svc_info
+        pipeline_trace.append({"step": "Discover Quiz Service", "status": "success", "details": f"Found '{svc_q}' on peer {peer_id_q[:12]}..."})
         quiz_data = call_service_via_anet(peer_id_q, svc_q, "/generate", {"knowledge": knowledge_text, "topic": topic})
         if quiz_data:
-             pipeline_trace.append({"step": "Call Quiz Service (P2P)", "status": "success", "details": "Called via anet svc call (true P2P)"})
+             pipeline_trace.append({"step": "Call Quiz Service (P2P)", "status": "success", "details": "Called via anet svc call"})
         else:
-            pipeline_trace.append({"step": "Call Quiz Service (P2P)", "status": "failed", "details": "anet call failed, attempting direct HTTP fallback"})
+            pipeline_trace.append({"step": "Call Quiz Service (P2P)", "status": "failed", "details": "anet call failed, attempting HTTP fallback"})
     else:
-        pipeline_trace.append({"step": "Discover Quiz Service", "status": "failed", "details": "Could not find service with skill 'quiz', attempting direct HTTP fallback"})
+        pipeline_trace.append({"step": "Discover Quiz Service", "status": "failed", "details": "Could not find 'quiz' skill, attempting HTTP fallback"})
 
-    # Fallback to direct HTTP if P2P fails
     if not quiz_data:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post("http://localhost:7102/generate", json={"knowledge": knowledge_text, "topic": topic}, timeout=30.0)
                 response.raise_for_status()
                 quiz_data = response.json()
-                pipeline_trace.append({"step": "Call Quiz Service (HTTP Fallback)", "status": "success", "details": "Generated quiz via direct HTTP call"})
+                pipeline_trace.append({"step": "Call Quiz Service (HTTP Fallback)", "status": "success"})
         except (httpx.RequestError, httpx.HTTPStatusError) as e:
-            pipeline_trace.append({"step": "Call Quiz Service (HTTP Fallback)", "status": "error", "details": str(e)})
-            raise HTTPException(status_code=503, detail="Quiz agent is unreachable.")
+            raise HTTPException(status_code=503, detail=f"Quiz agent unreachable: {e}")
 
     quiz_questions = quiz_data.get("quiz", [])
-    pipeline_trace.append({"step": "Pipeline Complete", "status": "success", "details": "Successfully generated study materials."})
+    pipeline_trace.append({"step": "Pipeline Complete", "status": "success"})
 
     return StudyResponse(
         topic=topic,
@@ -174,6 +191,70 @@ async def study(request: StudyRequest):
         quiz=quiz_questions,
         pipeline_trace=pipeline_trace
     )
+
+@app.post("/explain", response_model=ExplainResponse)
+async def explain(request: ExplainRequest):
+    explanation_data = None
+    
+    # Discover and call explanation service
+    explanation_svc_info = discover_service("explanation")
+    if explanation_svc_info:
+        peer_id_e, svc_e = explanation_svc_info
+        explanation_data = call_service_via_anet(peer_id_e, svc_e, "/explain", request.dict())
+
+    # Fallback to direct HTTP if P2P fails
+    if not explanation_data:
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post("http://127.0.0.1:7104/explain", json=request.dict(), timeout=25.0)
+                response.raise_for_status()
+                explanation_data = response.json()
+        except (httpx.RequestError, httpx.HTTPStatusError) as e:
+            raise HTTPException(status_code=503, detail=f"Explanation agent unreachable: {e}")
+
+    return ExplainResponse(**explanation_data)
+
+@app.post("/learning-path", response_model=LearningPathResponse)
+async def learning_path(request: LearningPathRequest):
+    try:
+        prompt = f"""Given someone just studied '{request.topic}', suggest exactly 3 related CS topics they should study next. Return ONLY a JSON array of 3 strings. Example: ["Binary Trees", "Dynamic Programming", "Graph Algorithms"]"""
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                OPENROUTER_URL,
+                headers={
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": "deepseek/deepseek-chat",
+                    "messages": [
+                        {"role": "system", "content": "You are a curriculum planner. Return only a valid JSON array of strings."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    "max_tokens": 100
+                },
+                timeout=15
+            )
+            response.raise_for_status()
+            data = response.json()
+            raw_content = data["choices"][0]["message"]["content"].strip()
+            
+            # Clean and parse the JSON
+            if raw_content.startswith("```"):
+                raw_content = raw_content.split("```")[1]
+                if raw_content.startswith("json"):
+                    raw_content = raw_content[4:]
+            
+            topics = json.loads(raw_content)
+            if isinstance(topics, list) and len(topics) == 3 and all(isinstance(t, str) for t in topics):
+                return LearningPathResponse(topics=topics)
+            else:
+                raise HTTPException(status_code=500, detail="LLM returned invalid format for learning path.")
+
+    except (httpx.RequestError, httpx.HTTPStatusError, json.JSONDecodeError, IndexError) as e:
+        raise HTTPException(status_code=503, detail=f"Failed to generate learning path from LLM: {e}")
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=7103)

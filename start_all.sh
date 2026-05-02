@@ -1,8 +1,9 @@
 #!/bin/bash
+set -a; source .env 2>/dev/null; set +a
 
 # This script starts the entire AgentNetwork Study Pipeline stack.
 # 1. Starts two local anet P2P daemons.
-# 2. Starts the three Python FastAPI agents in the background.
+# 2. Starts the four Python FastAPI agents in the background.
 # 3. Registers the agents to the P2P mesh.
 # 4. Starts a simple Python HTTP server for the frontend.
 
@@ -12,6 +13,7 @@ echo "--- Cleaning up previous processes ---"
 fuser -k 7101/tcp || true
 fuser -k 7102/tcp || true
 fuser -k 7103/tcp || true
+fuser -k 7104/tcp || true
 fuser -k 8080/tcp || true
 # Stop the anet daemons
 bash scripts/two-node.sh stop || true
@@ -49,6 +51,10 @@ QUIZ_PID=$!
 echo "Starting Orchestrator Agent (port 7103)..."
 python3 orchestrator_agent.py &
 ORCH_PID=$!
+
+echo "Starting Explanation Agent (port 7104)..."
+python3 explanation_agent.py &
+EXPLAIN_PID=$!
 cd ..
 
 echo "Agents starting in background. Waiting for them to initialize..."
@@ -83,13 +89,14 @@ echo "================================================"
 echo "✅ Everything is running!"
 echo "================================================"
 echo ""
-echo "   - Frontend UI:      http://localhost:8080"
-echo "   - Orchestrator API: http://localhost:7103"
-echo "   - Knowledge API:    http://localhost:7101"
-echo "   - Quiz API:         http://localhost:7102"
+echo "   - Frontend UI:        http://localhost:8080"
+echo "   - Orchestrator API:   http://localhost:7103"
+echo "   - Knowledge API:      http://localhost:7101"
+echo "   - Quiz API:           http://localhost:7102"
+echo "   - Explanation API:    http://localhost:7104"
 echo ""
-echo "   - P2P Daemon 1:     http://127.0.0.1:13921"
-echo "   - P2P Daemon 2:     http://127.0.0.1:13922"
+echo "   - P2P Daemon 1:       http://127.0.0.1:13921"
+echo "   - P2P Daemon 2:       http://127.0.0.1:13922"
 echo ""
 echo "Open http://localhost:8080 in your browser to use the application."
 echo ""
