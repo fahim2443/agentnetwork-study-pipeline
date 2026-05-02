@@ -1,4 +1,5 @@
 #!/bin/bash
+export $(cat .env | xargs) 2>/dev/null || true
 set -a; source .env 2>/dev/null; set +a
 
 # This script starts the entire AgentNetwork Study Pipeline stack.

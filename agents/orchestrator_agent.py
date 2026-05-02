@@ -7,10 +7,16 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Any
+from dotenv import load_dotenv
+
+# Load .env from project root (one level up from agents/)
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 # --- LLM Configuration ---
-OPENROUTER_API_KEY = "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"
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+
+print(f"[config] API key loaded: {'YES' if OPENROUTER_API_KEY else 'NO - check .env file'}")
 
 # --- FastAPI App ---
 app = FastAPI()
@@ -258,3 +264,11 @@ async def learning_path(request: LearningPathRequest):
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=7103)
+
+
+@app.get("/config-check")
+async def config_check():
+    return {
+        "api_key_loaded": bool(OPENROUTER_API_KEY),
+        "key_prefix": (OPENROUTER_API_KEY[:10] + "...") if OPENROUTER_API_KEY else "EMPTY"
+    }

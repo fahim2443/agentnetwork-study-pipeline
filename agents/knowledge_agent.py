@@ -5,6 +5,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import httpx
 import re
+from dotenv import load_dotenv
+
+# Load .env from project root (one level up from agents/)
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 # --- LLM Configuration ---
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
